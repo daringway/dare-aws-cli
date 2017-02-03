@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+
+PATH=$(dirname $(dirname ${BASH_SOURCE[0]}))/bin:$PATH
+
+alias assh=aws-ec2-ssh
+
+# Used _ to hide function from auto complete
+function _aws-cred-help () {
+    echo "aws-cred [-u username] [-r region] [-v] account"
+    echo "aws-cred -l"
+    echo
+    echo "-l list accounts"
+    echo "-v verbose mode"
+}
+
+function aws-cred () {
+    # Set Defaults
+    local OPTIND
+    local AWSUSER=${AWSUSER-${USER}}
+    AWSUSER=${USER-$(username)}
+    export AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION-"us-east-1"}
+    export AWS_DEFAULT_PROFILE
+
+    while getopts "h?lvr:u:" opt $*
+    do
+        case $opt in
+            h|\?)
+                _aws-cred-help
+                return 2
+            ;;
+            u)
+                AWSUSER=$OPTARG
+            ;;
+            r)
+                AWS_DEFAULT_REGION=$OPTARG
+            ;;
+            v)
+                VERBOSE=1
+            ;;
+            l)
+                aws-cred-list
+                return 0
+            ;;
+        esac
+    done
+    shift $((OPTIND-1))
+
+    if [[ -z ${1} ]]
+    then
+        GREP=cat
+    else
+        GREP="grep ${1}"
+    fi
+
+    declare -a profiles=( $(aws-cred-list | $GREP ) )
+    local i=0
+
+    if (( ${#profiles[@]} == 1 ))
+    then
+            where=0
+    else
+        while (( $i < ${#profiles[@]} ))
+        do
+                echo $i: ${profiles[$i]}
+                i=$(( $i + 1))
+        done
+        echo -n "profile? "
+        read where
+        if [[ $where == "" ]]
+        then
+                exit
+        fi
+    fi
+
+    if [[ $where =~ ^[0-9]+$ ]]
+    then
+        # we have a index (number) so lookup hostname.
+        AWS_DEFAULT_PROFILE=${profiles[$where]}
+    else
+        AWS_DEFAULT_PROFILE=$(aws-cred-list | grep ${where} )
+    fi
+
+
+    if grep "\[${AWS_DEFAULT_PROFILE}\]" ~/.aws/credentials >/dev/null 2>&1
+    then
+        [[ -n $VERBOSE ]] && echo "using profile from ~/.aws/credentials"
+        unset AWS_ACCESS_KEY_ID
+        unset AWS_SECRET_ACCESS_KEY
+    else
+        # Look in Mac keychain
+        KEYCHAIN_ENTRY="${AWSUSER}@${AWS_DEFAULT_PROFILE}"
+        export AWS_ACCESS_KEY_ID=$(security find-generic-password -s $KEYCHAIN_ENTRY -a AWS_ACCESS_KEY_ID -w 2>/dev/null )
+        export AWS_SECRET_ACCESS_KEY=$(security find-generic-password -s $KEYCHAIN_ENTRY -a AWS_SECRET_ACCESS_KEY -w 2>/dev/null)
+
+        if  [ -z $AWS_ACCESS_KEY_ID ]
+        then
+            echo "ERROR: unable to find AWS_DEFAULT_PROFILE or  AWS_ACCESS_KEY" 1>&2
+            return 1
+        fi
+
+        [[ ! -z $VERBOSE ]] && echo "using credentials from MAC KEYCHAIN"
+    fi
+
+    # Set the prompt so you know what you're doing
+    export COLOR="32m"
+    export PS1="\[\033[$COLOR\][\u@\h \W] $AWSUSER@$AWS_DEFAULT_PROFILE ($AWS_DEFAULT_REGION):\[\033[0m\] "
+}
+
+function aws-role-unassume {
+        if [[ -n $AWS_ASSUME_ROLE ]]
+        then
+            unset AWS_ASSUME_ROLE
+            export AWS_ACCESS_KEY_ID=${prev_AWS_ACCESS_KEY_ID}
+            export AWS_SECRET_ACCESS_KEY=${prev_AWS_SECRET_ACCESS_KEY}
+            export AWS_SESSION_TOKEN=${prev_AWS_SESSION_TOKEN}
+            [[ -z ${AWS_ACCESS_KEY_ID} ]] && unset AWS_ACCESS_KEY_ID
+            [[ -z ${AWS_SECRET_ACCESS_KEY} ]] && unset AWS_SECRET_ACCESS_KEY
+            [[ -z ${AWS_SESSION_TOKEN} ]] && unset AWS_SESSION_TOKEN
+        fi
+}
+function _aws-role-assume-help {
+    echo "aws-role-assume [-a account] [-r role] [-e external-id] [-v] roleId"
+    echo "aws-role-assume -a account -r role [-e external-id] [-v] "
+    echo "aws-role-assume -l"
+    echo
+    echo "-a AWS Account Number"
+    echo "-r AWS Role Name"
+    echo "-e AWS External ID"
+    echo "-l list roles"
+    echo "-v verbose mode"
+}
+function aws-role-assume {
+
+    local OPTIND
+    local account
+    local role
+    local external_id
+    while getopts "h?lva:r:e:" opt $*
+    do
+        case $opt in
+            h|\?)
+                _aws-role-assume-help
+                return 2
+            ;;
+            a)
+                account=$OPTARG
+            ;;
+            r)
+                role=$OPTARG
+            ;;
+            e)
+                external_id=$OPTARG
+            ;;            v)
+                VERBOSE=1
+            ;;
+            l)
+                cat ~/.aws/roles | cut -d: -f1
+                return 0
+            ;;
+        esac
+    done
+    shift $((OPTIND-1))
+
+    local roleId=$1
+    local session=$(tty)
+    session=${session##*/}
+
+                declare -a roles
+                if [[ -z ${1} ]]
+                then
+                        GREP=cat
+                else
+                        GREP="grep ${roleId}"
+                fi
+                roles=($($GREP ~/.aws/roles))
+                if (( ${#roles[@]} == 1 ))
+                then
+                        where=0
+                else
+                        local i=0
+                        while (( $i < ${#roles[@]} == 1))
+                        do
+                                echo $i: ${roles[$i]%%:*}
+                                i=$(( $i + 1))
+                        done
+                        echo "role? "
+                        read where
+                        if [[ $where == "" ]]
+                        then
+                                exit
+                        fi
+                fi
+                roleId=$( echo ${roles[$where]} | cut -d: -f1)
+                [[ -z $account ]] && account=$( echo ${roles[$where]} | cut -d: -f2)
+                [[ -z $role ]] && role=$( echo ${roles[$where]} | cut -d: -f4)
+                [[ -z $external_id ]] && external_id=$( echo ${roles[$where]} | cut -d: -f5)
+
+                if [[ -n $external_id ]]
+                then
+                    EXT_ID="--external-id ${external_id}"
+                fi
+
+        aws-role-unassume
+
+        roleARN=arn:aws:iam::${account}:${role}
+
+        AWS_CREDS=$(aws sts assume-role --role-arn ${roleARN} $EXT_ID --role-session-name RoleSession${session} )
+        ret=$?
+        if [[ $ret == 0 ]]
+        then
+            [[ -n $VERBOSE ]] && printf "    Account: ${account}\n       Role: ${role}\n ExternalId: ${external_id}\n    RoleARN: ${roleARN}\n"
+            export AWS_ASSUME_ROLE=${roleARN}
+            prev_AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+            prev_AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+            prev_AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
+            export AWS_ACCESS_KEY_ID="$(echo $AWS_CREDS | perl -ne 'print $1 if /"AccessKeyId":\s+"([^"]+)/' )"
+            export AWS_SECRET_ACCESS_KEY="$(echo $AWS_CREDS | perl -ne 'print $1 if /"SecretAccessKey":\s+"([^"]+)/' )"
+            export AWS_SESSION_TOKEN="$(echo $AWS_CREDS | perl -ne 'print $1 if /"SessionToken":\s+"([^"]+)/' )"
+        else
+            echo "ERROR: Failed to assume role" 1>&2
+            return $ret
+        fi
+}
+alias aws-assume=aws-role-assume

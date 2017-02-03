@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+# Set AWSLOGIN in your profile
+# Optional: Set AWSLOOPACCOUNTS to string of aws account name you want to loop on
+
+. $(dirname $0)/../etc/daring-environment
+
+# if AWSLOOPACCOUNTS is unset then loop on all profile entries in ~/.aws/config
+for ROLE in ${AWSLOOPROLES-$(grep profile  ~/.aws/roles | cut -d: -f1)}
+do
+    echo "****** $ROLE ******"
+    aws-role-assume $ROLE
+    eval $*
+done

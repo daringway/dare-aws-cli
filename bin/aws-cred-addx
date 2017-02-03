@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+
+if [ $(uname) != "Darwin" ] ; then
+        echo "Only supported on OSX" 1>&2
+        exit 1
+fi
+
+function help {
+    echo "$(basename $0) -u username -a account -f accessKeys.csv" 1>&2
+    echo "$(basename $0) -u username -a account -k access_key -s secret-key" 1>&2
+    exit 2
+}
+
+if (( $# < 6 ))
+then
+       help
+fi
+
+
+while getopts "h?u:a:k:s:f:" opt $*
+do
+    case $opt in
+        h|\?)
+            help
+            return 2
+        ;;
+        u)
+            AWSUSER=$OPTARG
+        ;;
+        a)
+            AWS_ACCOUNT=$OPTARG
+        ;;
+        k)
+            AWS_ACCESS_KEY_ID=$OPTARG
+        ;;
+        s)
+            AWS_SECRET_ACCESS_KEY=$OPTARG
+        ;;
+        f)
+            CRED_FILE=$OPTARG
+        ;;
+    esac
+done
+shift $((OPTIND-1))
+
+if [ -n "${CRED_FILE}" ]
+then
+    if [ -r $CRED_FILE ]
+    then
+        AWS_ACCESS_KEY_ID=$( grep -v Access $CRED_FILE | cut -d, -f1)
+        AWS_SECRET_ACCESS_KEY=$( grep -v Access $CRED_FILE | tr -d '\r' | cut -d, -f2 )
+    else
+        echo "ERROR: Can not find or read $FILE" 1>&2
+        exit 1
+    fi
+fi
+
+if [ -z "$AWSUSER" ] || [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] ; then
+	help
+	exit 1
+fi
+
+KEYCHAIN_ENTRY="${AWSUSER}@${AWS_ACCOUNT}"
+
+if security find-generic-password -a AWS_ACCESS_KEY_ID -s $KEYCHAIN_ENTRY >/dev/null 2>/dev/null
+then
+#    Need to delete first
+    echo "Removing existing entry"
+    security delete-generic-password -c AWSK -D AWS_ACCESS_KEY_ID -a AWS_ACCESS_KEY_ID -s $KEYCHAIN_ENTRY >/dev/null 2>/dev/null
+    security delete-generic-password -c AWSK -D AWS_SECRET_ACCESS_KEY -a AWS_SECRET_ACCESS_KEY -s $KEYCHAIN_ENTRY >/dev/null 2>/dev/null
+fi
+
+security add-generic-password -c AWSK -D AWS_ACCESS_KEY_ID -a AWS_ACCESS_KEY_ID -s $KEYCHAIN_ENTRY -w $AWS_ACCESS_KEY_ID -T /usr/bin/security
+security add-generic-password -c AWSK -D AWS_SECRET_ACCESS_KEY -a AWS_SECRET_ACCESS_KEY -s $KEYCHAIN_ENTRY -w "${AWS_SECRET_ACCESS_KEY}"
+
+echo -n "Added AWS_ACCESS_KEY_ID for $AWSUSER in $AWS_ACCOUNT: "
+security find-generic-password -a AWS_ACCESS_KEY_ID -s $KEYCHAIN_ENTRY -w
+echo -n "Added AWS_SECRET_ACCESS_KEY for $AWSUSER in $AWS_ACCOUNT (truncated for security): "
+security find-generic-password -a AWS_SECRET_ACCESS_KEY -s $KEYCHAIN_ENTRY -w | cut -c1-15
+
+# This is needed in the ~/.aws/config directory
+# Escape the ][ lest you are using a regex. eek
+grep "\[profile $AWS_ACCOUNT\]" ~/.aws/config > /dev/null 2>&1
+if [ $? -ne 0 ] ; then
+	echo "Adding $AWS_ACCOUNT to ~/.aws/config - you can add customizations (like default output format) to that file"
+	echo "" >> ~/.aws/config
+	echo "[profile $AWS_ACCOUNT]" >> ~/.aws/config
+	echo "" >> ~/.aws/config
+fi

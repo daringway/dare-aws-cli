@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+PROFILE=~/.bash_profile
+if [ -f ~/.profile ]
+then
+    PROFILE=~/.profile
+fi
+DENV=$(dirname $(dirname $0))/etc/daring-environment
+
+if ! grep $DENV $PROFILE >/dev/null 2>&1
+then
+    echo "" >> $PROFILE
+    echo "# ADDED by ${USER} on $(date)" >> $PROFILE
+    echo "# BY running $0" >> $PROFILE
+    echo ". $DENV" >> $PROFILE
+
+    echo "Added $DENV to your $PROFILE"
+    echo "Restart your login sesison and your are all set"
+else
+    echo "Your environment is already setup, nothing to do"
+fi

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+GREP=cat
+[[ -n $1 ]] && GREP=" grep $1 "
+
+grep '\[profile' ~/.aws/config 2>/dev/null | sed 's/.*\[profile[[:space:]]*\([^]]*\)\].*/\1/g' | grep -v default | $GREP | sort
+

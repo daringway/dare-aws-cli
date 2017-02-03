@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+GREP=cat
+[[ -n $1 ]] && GREP=" grep $1 "
+
+$GREP ~/.aws/roles | cut -d: -f1
