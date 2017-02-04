@@ -5,7 +5,7 @@ if [ -f ~/.profile ]
 then
     PROFILE=~/.profile
 fi
-DENV=$(dirname $(dirname $0))/etc/daring-environment
+DENV=$(dirname $(dirname $0))/etc/dare-aws-cli.rc
 
 if ! grep $DENV $PROFILE >/dev/null 2>&1
 then
