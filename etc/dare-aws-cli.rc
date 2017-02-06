@@ -118,10 +118,10 @@ function aws-role-unassume {
             [[ -z ${AWS_SESSION_TOKEN} ]] && unset AWS_SESSION_TOKEN
         fi
 }
-function _aws-role-assume-help {
-    echo "aws-role-assume [-a account] [-r role] [-e external-id] [-v] roleId"
-    echo "aws-role-assume -a account -r role [-e external-id] [-v] "
-    echo "aws-role-assume -l"
+function _aws-role-help {
+    echo "aws-role [-a account] [-r role] [-e external-id] [-v] roleId"
+    echo "aws-role -a account -r role [-e external-id] [-v] "
+    echo "aws-role -l"
     echo
     echo "-a AWS Account Number"
     echo "-r AWS Role Name"
@@ -129,7 +129,7 @@ function _aws-role-assume-help {
     echo "-l list roles"
     echo "-v verbose mode"
 }
-function aws-role-assume {
+function aws-role {
 
     local OPTIND
     local account
@@ -139,7 +139,7 @@ function aws-role-assume {
     do
         case $opt in
             h|\?)
-                _aws-role-assume-help
+                _aws-role-help
                 return 2
             ;;
             a)
@@ -221,4 +221,3 @@ function aws-role-assume {
             return $ret
         fi
 }
-alias aws-assume=aws-role-assume

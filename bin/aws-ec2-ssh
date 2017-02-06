@@ -108,6 +108,5 @@ then
 	echo SSH-OPTIONS $PEMOPT ${arr[*]}
 fi
 
-
 ssh $PEMOPT -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ${arr[*]}
 

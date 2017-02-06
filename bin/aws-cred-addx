@@ -16,7 +16,6 @@ then
        help
 fi
 
-
 while getopts "h?u:a:k:s:f:" opt $*
 do
     case $opt in

@@ -5,10 +5,10 @@
 
 . $(dirname $0)/../etc/daring-environment
 
-# if AWSLOOPACCOUNTS is unset then loop on all profile entries in ~/.aws/config
+# if AWSLOOPROLES is unset then loop on all profile entries in ~/.aws/config
 for ROLE in ${AWSLOOPROLES-$(grep profile  ~/.aws/roles | cut -d: -f1)}
 do
     echo "****** $ROLE ******"
-    aws-role-assume $ROLE
+    aws-role $ROLE
     eval $*
 done
