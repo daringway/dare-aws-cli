@@ -6,8 +6,11 @@ A set of helper scripts to make your life a little easier in AWS.
 
 Time to setup your environment. All the dare-aws-cli-setup script does is add the etc/dare-aws-cli.rc to your .profile or .bash_profile
 
-1. Clone or download this repo.
-1. ``` # dare-aws-cli/bin/dare-aws-cli-setup ```
+1. Clone or download this repo and runt the setup script.
+    ``` 
+    # git clone https://github.com/daringway/dare-aws-cli.git
+    # dare-aws-cli/bin/dare-aws-cli-setup 
+    ```
 1. Start a new bash session
 
 
