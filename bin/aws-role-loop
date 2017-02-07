@@ -3,7 +3,7 @@
 # Set AWSLOGIN in your profile
 # Optional: Set AWSLOOPACCOUNTS to string of aws account name you want to loop on
 
-. $(dirname $0)/../etc/daring-environment
+. $(dirname $0)/../etc/dare-aws-cli.rc
 
 # if AWSLOOPROLES is unset then loop on all profile entries in ~/.aws/config
 for ROLE in ${AWSLOOPROLES-$(grep profile  ~/.aws/roles | cut -d: -f1)}
