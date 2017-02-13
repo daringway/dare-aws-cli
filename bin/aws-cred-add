@@ -6,17 +6,11 @@ if [ $(uname) != "Darwin" ] ; then
 fi
 
 function help {
-    echo "$(basename $0) -u username -a account -f accessKeys.csv" 1>&2
-    echo "$(basename $0) -u username -a account -k access_key -s secret-key" 1>&2
+    echo "$(basename $0) [-u username] [-c credential_id] [-k access_key] [-s secret-key] [-f accessKeys.csv]" 1>&2
     exit 2
 }
 
-if (( $# < 6 ))
-then
-       help
-fi
-
-while getopts "h?u:a:k:s:f:" opt $*
+while getopts "h?u:c:k:s:f:" opt $*
 do
     case $opt in
         h|\?)
@@ -24,16 +18,16 @@ do
             return 2
         ;;
         u)
-            AWSUSER=$OPTARG
+            NEW_AWSUSER=$OPTARG
         ;;
-        a)
-            AWS_ACCOUNT=$OPTARG
+        c)
+            NEW_CRED_ID=$OPTARG
         ;;
         k)
-            AWS_ACCESS_KEY_ID=$OPTARG
+            NEW_AWS_ACCESS_KEY_ID=$OPTARG
         ;;
         s)
-            AWS_SECRET_ACCESS_KEY=$OPTARG
+            NEW_AWS_SECRET_ACCESS_KEY=$OPTARG
         ;;
         f)
             CRED_FILE=$OPTARG
@@ -42,24 +36,59 @@ do
 done
 shift $((OPTIND-1))
 
+if [ -z "${NEW_CRED_ID}" ]
+then
+    echo -n "AWS Credential Identifier: "
+    read NEW_CRED_ID
+fi
+
 if [ -n "${CRED_FILE}" ]
 then
     if [ -r $CRED_FILE ]
     then
-        AWS_ACCESS_KEY_ID=$( grep -v Access $CRED_FILE | cut -d, -f1)
-        AWS_SECRET_ACCESS_KEY=$( grep -v Access $CRED_FILE | tr -d '\r' | cut -d, -f2 )
+        NEW_AWS_ACCESS_KEY_ID=$( grep -v Access $CRED_FILE | cut -d, -f1)
+        NEW_AWS_SECRET_ACCESS_KEY=$( grep -v Access $CRED_FILE | tr -d '\r' | cut -d, -f2 )
     else
         echo "ERROR: Can not find or read $FILE" 1>&2
         exit 1
     fi
+else
+    if [ -z "${NEW_AWS_ACCESS_KEY_ID}" ]
+    then
+        echo -n "AWS Access Key ID [${AWS_ACCESS_KEY_ID-None}]: "
+        read NEW_AWS_ACCESS_KEY_ID
+        if [ -z "${NEW_AWS_ACCESS_KEY_ID}" ]
+        then
+            NEW_AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+        fi
+    fi
+    if [ -z "${NEW_AWS_SECRET_ACCESS_KEY}" ]
+    then
+        echo -n "AWS Secret Access Key [${AWS_SECRET_ACCESS_KEY-None}]: "
+        read NEW_AWS_SECRET_ACCESS_KEY
+        if [ -z "${NEW_AWS_SECRET_ACCESS_KEY}" ]
+        then
+            NEW_AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+        fi
+    fi
 fi
 
-if [ -z "$AWSUSER" ] || [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] ; then
+if [ -z "$AWSUSER" ]
+then
+    echo -n "Enter the user [$USER]: "
+    read AWSUSER
+    if [ -z ${AWSUSER} ]
+    then
+        AWSUSER=${USER}
+    fi
+fi
+
+if [ -z "$AWSUSER" ] || [ -z "$NEW_AWS_ACCESS_KEY_ID" ] || [ -z "$NEW_AWS_SECRET_ACCESS_KEY" ] ; then
 	help
 	exit 1
 fi
 
-KEYCHAIN_ENTRY="${AWSUSER}@${AWS_ACCOUNT}"
+KEYCHAIN_ENTRY="${AWSUSER}@${NEW_CRED_ID}"
 
 if security find-generic-password -a AWS_ACCESS_KEY_ID -s $KEYCHAIN_ENTRY >/dev/null 2>/dev/null
 then
@@ -69,20 +98,20 @@ then
     security delete-generic-password -c AWSK -D AWS_SECRET_ACCESS_KEY -a AWS_SECRET_ACCESS_KEY -s $KEYCHAIN_ENTRY >/dev/null 2>/dev/null
 fi
 
-security add-generic-password -c AWSK -D AWS_ACCESS_KEY_ID -a AWS_ACCESS_KEY_ID -s $KEYCHAIN_ENTRY -w $AWS_ACCESS_KEY_ID -T /usr/bin/security
-security add-generic-password -c AWSK -D AWS_SECRET_ACCESS_KEY -a AWS_SECRET_ACCESS_KEY -s $KEYCHAIN_ENTRY -w "${AWS_SECRET_ACCESS_KEY}"
+security add-generic-password -c AWSK -D AWS_ACCESS_KEY_ID -a AWS_ACCESS_KEY_ID -s $KEYCHAIN_ENTRY -w $NEW_AWS_ACCESS_KEY_ID -T /usr/bin/security
+security add-generic-password -c AWSK -D AWS_SECRET_ACCESS_KEY -a AWS_SECRET_ACCESS_KEY -s $KEYCHAIN_ENTRY -w "${NEW_AWS_SECRET_ACCESS_KEY}"
 
-echo -n "Added AWS_ACCESS_KEY_ID for $AWSUSER in $AWS_ACCOUNT: "
+echo -n "Added AWS_ACCESS_KEY_ID for $AWSUSER in $NEW_CRED_ID: "
 security find-generic-password -a AWS_ACCESS_KEY_ID -s $KEYCHAIN_ENTRY -w
-echo -n "Added AWS_SECRET_ACCESS_KEY for $AWSUSER in $AWS_ACCOUNT (truncated for security): "
+echo -n "Added AWS_SECRET_ACCESS_KEY for $AWSUSER in $NEW_CRED_ID (truncated for security): "
 security find-generic-password -a AWS_SECRET_ACCESS_KEY -s $KEYCHAIN_ENTRY -w | cut -c1-15
 
 # This is needed in the ~/.aws/config directory
 # Escape the ][ lest you are using a regex. eek
-grep "\[profile $AWS_ACCOUNT\]" ~/.aws/config > /dev/null 2>&1
+grep "\[profile $NEW_CRED_ID\]" ~/.aws/config > /dev/null 2>&1
 if [ $? -ne 0 ] ; then
-	echo "Adding $AWS_ACCOUNT to ~/.aws/config - you can add customizations (like default output format) to that file"
+	echo "Adding $NEW_CRED_ID to ~/.aws/config - you can add customizations (like default output format) to that file"
 	echo "" >> ~/.aws/config
-	echo "[profile $AWS_ACCOUNT]" >> ~/.aws/config
+	echo "[profile $NEW_CRED_ID]" >> ~/.aws/config
 	echo "" >> ~/.aws/config
 fi
