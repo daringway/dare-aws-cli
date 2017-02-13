@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
 
-# Set AWSLOGIN in your profile
-# Optional: Set AWSLOOPACCOUNTS to string of aws account name you want to loop on
-
+# Need to get access to aws-cred
 . $(dirname $0)/../etc/dare-aws-cli.rc
 
-# if AWSLOOPACCOUNTS is unset then loop on all profile entries in ~/.aws/config
-for ACCOUNT in ${AWSLOOPACCOUNTS-$(grep profile  ~/.aws/config | awk '{print $2}' | cut -d] -f1)}
+
+if [[ $1 == "--cred" ]]
+then
+    LOOPON=$( echo $2 | sed -n 's/,/ /g;p' )
+    shift
+    shift
+else
+    LOOPON=${AWSLOOPACCOUNTS-$(aws-cred-list)}
+fi
+
+for ACCOUNT in ${LOOPON}
 do
     echo "****** $ACCOUNT ******"
     aws-cred $ACCOUNT

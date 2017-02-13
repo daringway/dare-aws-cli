@@ -31,7 +31,10 @@ If you do not specify a credential a list of options will be presented.
 
 ## aws-cred-loop
 
-This commands allows you to loop over a set of $AWSLOOPACCOUNTS and execute a command
+This commands allows you to loop over a set AWS credentials. The search order is
+1. --cred comma_list_of_creds
+1. environment variable $AWSLOOPACCOUNTS in comma seperate list
+1. output from aws-cred-list
 
 ```
 # export AWSLOOPACCOUNTS="cred1 cred2 cred5"
@@ -40,11 +43,23 @@ This commands allows you to loop over a set of $AWSLOOPACCOUNTS and execute a co
 
 ## aws-role AWS Assume Role
 
-aws-role is a built-in function that allows easy AWS assume role.  Same functionality as aws-cred
+aws-role is a built-in function that allows easy AWS assume role.  Same functionality as aws-cred.
+
+Roles are configured in the ~/.aws/roles in the following format.  Note that exteranl_id is optional.
+
+```
+[role arbitrary-name-identifier]
+account = 123456789012  
+role = role/IAM-ROLE-NAME
+external_id = 123456789
+```
 
 ## aws-role-loop
 
-Exact same function as aws-cred-loop except for roles and the uses AWSLOOPROLES
+This commands allows you to loop over a set AWS roles. The search order is
+1. --cred comma_list_of_roles
+1. environment variable $AWSLOOPROLES in comma seperate list
+1. output from aws-role-list
 
 ## aws-ec2-ssh (alias assh)
 

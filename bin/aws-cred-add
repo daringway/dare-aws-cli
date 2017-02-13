@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 if [ $(uname) != "Darwin" ] ; then
-        echo "Only supported on OSX" 1>&2
+        echo "Only supported on OSX for secure credentials" 1>&2
         exit 1
 fi
 
