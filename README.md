@@ -1,6 +1,11 @@
 # dare-aws-cli
 
-A set of helper scripts to make your life a little easier in AWS.
+A set of helper scripts to make your life a little easier in AWS. 
+
+Current Features:
+    - Securely storing credentials in your Mac OS X keychain
+    - AWS credentials switching and looping
+    - AWS role assume and looping
 
 ## Installation & Setup
 
