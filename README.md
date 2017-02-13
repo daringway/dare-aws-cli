@@ -4,7 +4,7 @@ A set of helper scripts to make your life a little easier in AWS.
 
 ## Installation & Setup
 
-Time to setup your environment. All the dare-aws-cli-setup script does is add the etc/dare-aws-cli.rc to your .profile or .bash_profile
+Time to setup your environment. The dare-aws-cli-setup script adds etc/dare-aws-cli.rc to your .profile or .bash_profile
 
 1. Clone or download this repo and runt the setup script.
 
@@ -14,18 +14,23 @@ Time to setup your environment. All the dare-aws-cli-setup script does is add th
     ```
 1. Start a new bash session
 
-
 ## Overview
 
-All commands start with 'aws-' for easy tab completion.  Most commands have the -? and -h options.
+All commands start with 'aws-' for easy tab completion.  Most commands have the -? and -h option.
 
 WARNING: Commands that are not listed below are still in development and subject to change.
 
-## aws-cred AWS Credential Switching
+## aws-cred-add
+
+Security store you AWS credentials.  Currently only support on Mac OS X to store in your keychain.
+
+## aws-cred 
+
+AWS Credential Switching. 
 
 aws-cred is built-in function that allows easy switching between AWS Credentials.
 
-Credentials can exist in either ~/./aws/credentials or in Mac OS X keychain (see aws-cred-addx)
+Credentials can exist in either ~/./aws/credentials or in Mac OS X keychain (see aws-cred-add)
 
 If you do not specify a credential a list of options will be presented. 
 
@@ -41,11 +46,11 @@ This commands allows you to loop over a set AWS credentials. The search order is
 # aws-cred-loop ec2 describe-instances
 ```
 
-## aws-role AWS Assume Role
+## aws-role 
 
-aws-role is a built-in function that allows easy AWS assume role.  Same functionality as aws-cred.
+AWS Assume Role.  aws-role is a built-in function that allows easy AWS assume role. Same functionality as aws-cred but for roles.
 
-Roles are configured in the ~/.aws/roles in the following format.  Note that exteranl_id is optional.
+Roles are configured in the ~/.aws/roles in the following format.  exteranl_id is optional.
 
 ```
 [role arbitrary-name-identifier]
