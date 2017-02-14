@@ -10,7 +10,8 @@ then
     shift
     shift
 else
-    LOOPON=${AWSLOOPACCOUNTS-$(aws-cred-list)}
+    LOOPON=${AWSLOOPCREDS-$AWSLOOPACCOUNTS}
+    LOOPON=${LOOPON-$(aws-cred-list)}
 fi
 
 for ACCOUNT in ${LOOPON}

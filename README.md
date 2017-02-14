@@ -43,7 +43,7 @@ If you do not specify a credential a list of options will be presented.
 
 This commands allows you to loop over a set AWS credentials. The search order is
 1. --cred comma_list_of_creds
-1. environment variable $AWSLOOPACCOUNTS in comma seperate list
+1. environment variable $AWSLOOPCREDS in comma seperate list
 1. output from aws-cred-list
 
 ```
