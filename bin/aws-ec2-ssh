@@ -89,8 +89,9 @@ else
 fi
 
 # we have a index (number) so lookup hostname.
-DEST=$(echo ${LIST[$where]} | cut -d' ' -f3)
-PEM=$(echo ${LIST[$where]} | cut -d' ' -f4)
+PRIVATE_DEST=$(echo ${LIST[$where]} | cut -d' ' -f3)
+PUBLIC_DEST=$(echo ${LIST[$where]} | cut -d' ' -f4)
+PEM=$(echo ${LIST[$where]} | cut -d' ' -f5)
 
 if [ -f "$KEYDIR/${PEM}+${AWS_DEFAULT_PROFILE}.pem" ]
 then
@@ -100,13 +101,37 @@ then
     PEMOPT=" -i $KEYDIR/${PEM}.pem "
 fi
 
+# Check for Private access, then public
+#if nc -z -v -w1  $PRIVATE_DEST 22 >/dev/null 2>&1
+#then
+#    DEST=$PRIVATE_DEST
+#elif nc -z -v -w1  $PUBLIC_DEST 22 >/dev/null 2>&1
+#then
+#    DEST=$PUBLIC_DEST
+#else
+#    echo "ERROR: Can not reach $PRIVATE_DEST or $PUBLIC_DEST address" 1>&2
+#    exit 3
+#fi
 
-arr[$((OPTIND-1))]="${SUSER}${DEST}${SPATH}"
 
 if (( $VERBOSE ))
 then
 	echo SSH-OPTIONS $PEMOPT ${arr[*]}
 fi
 
-ssh $PEMOPT -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ${arr[*]}
+if [[ $PRIVATE_DEST == "No-PrivateIpAddress" ]]
+then
+    RC=255
+else
+    arr[$((OPTIND-1))]="${SUSER}${PRIVATE_DEST}${SPATH}"
+    ssh $PEMOPT -o ConnectTimeout=2 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ${arr[*]}
+    RC=$?
+fi
 
+if (( $RC != 255 ))
+then
+    exit $RC
+fi
+
+arr[$((OPTIND-1))]="${SUSER}${PUBLIC_DEST}${SPATH}"
+ssh $PEMOPT -o ConnectTimeout=2 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ${arr[*]}

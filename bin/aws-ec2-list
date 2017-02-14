@@ -17,13 +17,18 @@ def getTag(key, tags):
     for i in tags:
         if i['Key'] == key:
             return i['Value'].replace(' ', '-')
+    return "No-" + key
+
+def getKey(array, key):
+    try:
+        return array[key]
+    except KeyError:
+        return "No-" + key
 
 
 for r in response['Reservations']:
     for i in r['Instances']:
         if (find == None) or (find.lower() in str(i).lower()):
-            try:
-                print i['InstanceId'], getTag('Name', i['Tags']), i['PrivateIpAddress'], i['KeyName']
-            except KeyError:
-                print i['InstanceId'], getTag('Name', i['Tags']), i['PrivateIpAddress'], 'NONE'
-            # print(i);
+            print i['InstanceId'], getTag('Name', i['Tags']), getKey(i, 'PrivateIpAddress'), getKey(i, 'PublicIpAddress'), getKey(i, 'KeyName')
+
+
