@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-unction error {
+function error {
 	echo $*
 	exit 2
 }
