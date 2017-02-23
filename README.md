@@ -15,8 +15,13 @@ It will also call ./bindare-aws-cli-setup which adds etc/dare-aws-cli.rc to your
 1. Clone or download this repo and runt the setup script.
 
     ``` 
-    # curl -L https://raw.github.com/daringway/dare-aws-cli/master/install.sh | sudo bash -s -- ~/daring/dare-aws-cli
+    # curl -L https://raw.github.com/daringway/dare-aws-cli/master/install.sh | bash -s -- ~/daring/dare-aws-cli
     ```
+    
+    If you are installing into a root access required directory add sudo
+     ``` 
+    # curl -L https://raw.github.com/daringway/dare-aws-cli/master/install.sh | sudo bash -s -- ~/daring/dare-aws-cli
+    ```   
 1. Start a new bash session
 
 ## Update
