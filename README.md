@@ -7,6 +7,18 @@ Current Features:
     - AWS credentials switching and looping
     - AWS role assume and looping
 
+## Pre Reqs
+
+Python boto3 library is required. 
+```
+pip install boto3
+```
+
+If installing on Mac OS X and it failes try this
+```
+sudo pip install --ignore-installed six boto3
+```
+
 ## Installation & Setup
 
 Time to setup your environment. The Install script will create and install at the directory specified.
