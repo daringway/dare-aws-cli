@@ -9,15 +9,21 @@ Current Features:
 
 ## Installation & Setup
 
-Time to setup your environment. The dare-aws-cli-setup script adds etc/dare-aws-cli.rc to your .profile or .bash_profile
+Time to setup your environment. The Install script will create and install at the directory specified.
+It will also call ./bindare-aws-cli-setup which adds etc/dare-aws-cli.rc to your .profile or .bash_profile
 
 1. Clone or download this repo and runt the setup script.
 
     ``` 
-    # git clone https://github.com/daringway/dare-aws-cli.git
-    # dare-aws-cli/bin/dare-aws-cli-setup 
+    # curl -L https://raw.github.com/daringway/dare-aws-cli/master/install.sh | sudo bash -s -- ~/daring/dare-aws-cli
     ```
 1. Start a new bash session
+
+## Update
+
+```
+    # ~/daring/dare-aws-cli/bin/dare-aws-cli-update
+```
 
 ## Overview
 

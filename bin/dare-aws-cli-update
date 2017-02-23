@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+unction error {
+	echo $*
+	exit 2
+}
+
+DIR=$(dirname $(dirname $0))
+
+cd $DIR || error "failed to find install directory $DIR"
+
+# Extract to current directory
+curl -L https://api.github.com/repos/daringway/dare-aws-cli/tarball/master | gunzip -c | tar --strip-components=1 -xvf -
+
+chmod +x ./bin/*
