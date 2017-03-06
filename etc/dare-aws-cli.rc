@@ -3,6 +3,7 @@
 PATH=$(dirname $(dirname ${BASH_SOURCE[0]}))/bin:$PATH
 
 alias assh=aws-ec2-ssh
+alias aid=aws-cred-id
 
 # Used _ to hide function from auto complete
 function _aws-cred-help () {

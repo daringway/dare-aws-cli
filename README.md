@@ -48,6 +48,10 @@ All commands start with 'aws-' for easy tab completion.  Most commands have the 
 
 WARNING: Commands that are not listed below are still in development and subject to change.
 
+## aws-cred-id (alias aid)
+
+Display current AWS credentials. 
+
 ## aws-cred-add
 
 Security store you AWS credentials.  Currently only support on Mac OS X to store in your keychain.

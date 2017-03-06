@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+if [ ! -z ${AWS_ASSUME_ROLE+x} ]
+then
+echo "ROLE:       ${AWS_ASSUME_ROLE}"
+fi
+
+echo "PROFILE:    ${AWS_DEFAULT_PROFILE}"
+echo "REGION:     ${AWS_DEFAULT_REGION}"
+
+if [ ! -z ${AWSLOOPCREDS+x} ]
+then
+echo "LOOP CREDS: ${AWSLOOPCREDS}"
+fi
