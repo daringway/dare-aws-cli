@@ -112,3 +112,23 @@ keyname files use the following search option in ~/.aws/keys
 # aws-cred my-dev-cred
 # assh adminhost
 ```
+
+## Delete all Dead Users 
+
+Have some old accounts laying around you need to clean up?
+This will delete all Usera that do have no active Access Keys and no console access
+
+```
+for USER in $(aws-iam-list-dead-users )
+do
+  aws-iam-delete-user-recursive -v $USER
+done
+```
+
+To see that will happen use the dry-run option (-d)
+```
+for USER in $(aws-iam-list-dead-users )
+do
+  aws-iam-delete-user-recursive -d $USER
+done
+```

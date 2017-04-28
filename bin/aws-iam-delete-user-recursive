@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+
+
+
+
+
+function help {
+        cat <<%EOF%
+
+   $(basename $0) [-v] [-d] user-name-list
+
+    -v verbose mode
+    -d dry-run who commands to be executed
+
+%EOF%
+    exit 1
+}
+
+while getopts "h?vd" opt $*
+do
+    case $opt in
+        h|\?)
+            help
+            return 2
+        ;;
+        v)
+            VERBOSE=1
+        ;;
+        d)
+            DRYRUN=1
+    esac
+done
+shift $((OPTIND-1))
+
+function doCMD {
+    if [ -n "$DRYRUN" ]
+    then
+        echo $*
+    else
+        if [ -n "$VERBOSE" ]
+        then
+            echo $*
+        fi
+        $*
+    fi
+}
+
+for USER in $*
+do
+    for KEYID in $(aws iam list-access-keys --user-name ${USER} | jq -r '.AccessKeyMetadata[] | .AccessKeyId')
+    do
+        doCMD "aws iam delete-access-key --access-key ${KEYID} --user-name ${USER}"
+    done
+
+    for CERTID in $( aws iam list-signing-certificates | jq -r '.Certificates[] | .CertificateId')
+    do
+        doCMD "iam delete-signing-certificate --user-name ${USER} --certificate-id ${CERTID}"
+    done
+
+    if aws iam get-login-profile  --user-name $USER >/dev/null 2>&1
+    then
+        doCMD "aws iam delete-login-profile --user-name ${USER}"
+    fi
+
+    for DEVICE in $( aws iam list-mfa-devices --user-name ${USER} | jq -r '.MFADevices[] | .SerialNumber')
+    do
+        doCMD "aws iam deactivate-mfa-device --user-name ${USER} --serial-number $DEVICE"
+    done
+
+    for POLICY in $(  aws iam list-attached-user-policies --user-name ${USER} | jq -r '.AttachedPolicies[] | .PolicyArn' )
+    do
+        doCMD "aws iam detach-user-policy --user-name ${USER} --policy-arn ${POLICY}"
+    done
+
+    for GROUP in $( aws iam list-groups-for-user --user-name ${USER} | jq -r '.Groups[] | .GroupName' )
+    do
+        doCMD "aws iam remove-user-from-group --user-name ${USER} --group-name ${GROUP}"
+    done
+
+    for INLINE in $(aws iam list-user-policies --user-name ${USER} | jq -r ' .PolicyNames[] ' )
+    do
+        doCMD "aws iam delete-user-policy --user-name ${USER} --policy-name ${INLINE}"
+    done
+
+    doCMD "aws iam delete-user --user-name ${USER}"
+done

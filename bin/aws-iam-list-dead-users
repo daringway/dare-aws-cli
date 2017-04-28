@@ -2,15 +2,14 @@
 
 for USER in $(aws iam list-users  | jq -r '.Users[] | .UserName')
 do
-    echo -n $USER
     if [ "" != "$(aws iam list-access-keys --user-name $USER  | jq -r '.AccessKeyMetadata[] | if .Status != "Inactive" then .AccessKeyId else empty end')" ]
     then
-        echo " skipping, has credentials"
+        continue
     elif aws iam get-login-profile  --user-name $USER >/dev/null 2>&1
     then
-        echo " skipping, has login profile"
+        continue
     else
-        echo " XXXXXX"
+        echo $USER
     fi
 #        while read KEYID CREATEDATE
 #        do
