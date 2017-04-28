@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+for USER in $(aws iam list-users  | jq -r '.Users[] | .UserName')
+do
+    echo -n $USER
+    if [ "" != "$(aws iam list-access-keys --user-name $USER  | jq -r '.AccessKeyMetadata[] | if .Status != "Inactive" then .AccessKeyId else empty end')" ]
+    then
+        echo " skipping, has credentials"
+    elif aws iam get-login-profile  --user-name $USER >/dev/null 2>&1
+    then
+        echo " skipping, has login profile"
+    else
+        echo " XXXXXX"
+    fi
+#        while read KEYID CREATEDATE
+#        do
+#        for KEYID in $(aws iam list-access-keys --user-name ${USER} | jq -r '.AccessKeyMetadata[] | .AccessKeyId')
+#        do
+#        LASTDATE=$(aws iam get-access-key-last-used --access-key-id  ${KEYID} | jq -r '.AccessKeyLastUsed.LastUsedDate')
+#        echo $USER,$KEYID,$CREATEDATE,$LASTDATE
+#        done
+#    done
+done
