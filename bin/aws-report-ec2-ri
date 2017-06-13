@@ -2,11 +2,15 @@
 
 import boto3
 import sys
+import csv
 
 verbose = False
+csvOutput = False
 
 if len(sys.argv) > 1 and sys.argv[1] == '--detail':
     verbose = True
+if len(sys.argv) > 1 and sys.argv[1] == '--csv':
+    csvOutput = True
 
 ec2 = boto3.client('ec2')
 
@@ -20,6 +24,8 @@ reservedBuckets = []
 notReservedCount = {}
 notReservedCapacity = {}
 instancesByType = []
+
+accountid = boto3.client('sts').get_caller_identity()['Account']
 
 sizeMap = {
     'nano':      0.03125,
@@ -120,29 +126,70 @@ for instance in instancesByType:
                         instanceReserved = True
                         break
     if instanceReserved == False:
-        notReservedCount[instance['Platform'] + " " + instance['Instancetype']] = notReservedCount.get(instance['Instancetype'], 0) + 1
-        notReservedCapacity[instance['Platform'] + " " + instance['Category']] = notReservedCapacity.get(instance['Category'], 0) + sizeMap[instance['SizeName']]
+        notReservedCount[instance['Platform'] + " " + instance['Instancetype']] = notReservedCount.get(instance['Platform'] + " " + instance['Instancetype'], 0) + 1
+        notReservedCapacity[instance['Platform'] + " " + instance['Category']] = notReservedCapacity.get(instance['Platform'] + " " + instance['Category'], 0) + sizeMap[instance['SizeName']]
+
+if csvOutput:
+    fieldnames=['Account', 'State', 'RI', 'Platform', 'XL Capacity', 'Used', 'Remaining', 'Allocated']
+    csvOut = csv.DictWriter(sys.stdout, fieldnames=fieldnames, delimiter=',' )
+    csvOut.writeheader()
 
 for res in reservedBuckets:
-    if verbose and res['Capacity'] == 0:
+    if csvOutput:
+        max = sizeMap[res['Size']]
+        used = max - res['Capacity']
+        values = {
+            'Account': accountid,
+            'State': 'RI',
+            'RI': res['InstanceType'],
+            'Platform': res['Platform'],
+            'XL Capacity': max,
+            'Used': used,
+            'Remaining': res['Capacity'],
+            'Allocated': res['Allocated']
+        }
+        csvOut.writerow(values)
+    elif verbose and res['Capacity'] == 0:
         print "RI", res['InstanceType'], res['Platform'], 'is full:', res['Allocated']
     elif res['Capacity'] > 0:
         print "RI", res['InstanceType'], res['Platform'], 'remaining capacity', res['Capacity'], 'xlarge', res['Allocated']
 
+
 for cat in sorted(notReservedCapacity.keys(), key=lambda x: x):
     capacity = notReservedCapacity[cat]
     catType = cat.split(' ')[1]
-    if upgradeTypes.has_key(catType):
-        print "Upgrade", cat, "types to", upgradeTypes[catType], "before reserving"
+    platform = cat.split(' ')[0]
+
+    if csvOutput:
+        values = {
+            'Account': accountid,
+            'State': 'Reserve',
+            'RI': catType,
+            'Platform': platform
+        }
+        if upgradeTypes.has_key(catType):
+            values['State'] = 'Upgrade'
+        else:
+            values['XL Capacity'] = capacity
+
+        values['Allocated'] = []
+        for type in notReservedCount:
+            if type.split('.')[0] == cat:
+                values['Allocated'].append( str(notReservedCount[type]) + ' x ' + type.split(' ')[1] )
+
+        csvOut.writerow(values)
     else:
-        max = maxSize[catType]
-        count = int(capacity / max)
-        if count > 0 :
-            print "Reserve", count, cat, 'of capacity', max, 'xlarge'
-        cap = capacity % max
-        if cap > 0:
-            print "Reserve", 1, cat, 'of capacity', cap, 'xlarge'
-    for type in notReservedCount:
-        if type.split('.')[0] == cat:
-            print "     ", notReservedCount[type], 'x', type
+        if upgradeTypes.has_key(catType):
+            print "Upgrade", cat, "types to", upgradeTypes[catType], "before reserving"
+        else:
+            max = maxSize[catType]
+            count = int(capacity / max)
+            if count > 0 :
+                print "Reserve", count, cat, 'of capacity', max, 'xlarge'
+            cap = capacity % max
+            if cap > 0:
+                print "Reserve", 1, cat, 'of capacity', cap, 'xlarge'
+        for type in notReservedCount:
+            if type.split('.')[0] == cat:
+                print "     ", notReservedCount[type], 'x', type
 
