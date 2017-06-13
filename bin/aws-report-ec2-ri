@@ -1,0 +1,131 @@
+#!/usr/bin/env python
+
+import boto3
+import sys
+
+verbose = False
+
+if len(sys.argv) > 1 and sys.argv[1] == '--detail':
+    verbose = True
+
+ec2 = boto3.client('ec2')
+
+ActiveFilter = [ {'Name': 'state', 'Values': ['active']}]
+reserved = ec2.describe_reserved_instances( Filters= ActiveFilter )
+
+RunFilter = [{ 'Name': 'instance-state-name', 'Values': ['running']}]
+running = ec2.describe_instances( Filters = RunFilter )
+
+reservedBuckets = []
+notReservedCount = {}
+notReservedCapacity = {}
+instancesByType = []
+
+sizeMap = {
+    'nano':      0.03125,
+    'micro':     0.0625,
+    'small':     0.125,
+    'medium':    0.25,
+    'large':     0.5,
+    'xlarge':    1.0,
+    '2xlarge':   2.0,
+    '4xlarge':   4.0,
+    '8xlarge':   8.0,
+    '10xlarge': 10.0,
+    '16xlarge': 16.0,
+    '32xlarge': 32.0
+}
+
+maxSize = {
+    't2': 8,
+    'm4': 16,
+    'm3': 2,
+    'c4': 8,
+    'c3': 8,
+    'x1': 32,
+    'r4': 16,
+    'r3': 8,
+    'p2': 16,
+    'g2': 8,
+    'f1': 16,
+    'i3': 16,
+    'd2': 8,
+}
+upgradeTypes = {
+    't1': 't2',
+    'm1': 'm3',
+    'c1': 'c3',
+    'hi1': 'i3',
+    'm2': 'r3',
+    'cr1': 'r3',
+    'hs1': 'd2'
+}
+
+for res in reserved['ReservedInstances']:
+    rcount = res['InstanceCount']
+    rtype = res['InstanceType']
+    category = str(rtype.split('.')[0])
+    sizeName = str(rtype.split('.')[1])
+    for x in range(0, rcount):
+        reservedBuckets.append({
+            'InstanceType': rtype,
+            'Category': category,
+            'Size': sizeName,
+            'Capacity': sizeMap[sizeName],
+            'Allocated': []
+        })
+reservedBuckets.sort(key=lambda x: x['Size'], reverse=True)
+
+for reservation in running["Reservations"]:
+    for instance in reservation["Instances"]:
+        itype = instance['InstanceType']
+        category = itype.split('.')[0]
+        sizeName = itype.split('.')[1]
+        instancesByType.append({
+            'Instancetype': itype,
+            'Category': category,
+            'SizeName': sizeName,
+            'Size': sizeMap[sizeName],
+            'InstanceId': instance['InstanceId']
+        })
+
+instancesByType.sort(key=lambda x: x['Size'], reverse=True)
+
+for instance in instancesByType:
+    # print instance['Instancetype']
+    size = instance['Size']
+    category = instance['Category']
+    instanceReserved = False
+    for res in reservedBuckets:
+        if res['Category'] == category:
+            if size <= res['Capacity']:
+                res['Capacity'] = res['Capacity'] - size
+                res['Allocated'].append(instance['Instancetype'])
+                instanceReserved = True
+                break
+    if instanceReserved == False:
+        notReservedCount[instance['Instancetype']] = notReservedCount.get(instance['Instancetype'], 0) + 1
+        notReservedCapacity[instance['Category']] = notReservedCapacity.get(instance['Category'], 0) + sizeMap[instance['SizeName']]
+
+for res in reservedBuckets:
+    if verbose and res['Capacity'] == 0:
+        print "RI", res['InstanceType'], 'is full:', res['Allocated']
+    elif res['Capacity'] > 0:
+        print "RI", res['InstanceType'], 'remaining capacity', res['Capacity'], 'xlarge', res['Allocated']
+
+for cat in sorted(notReservedCapacity.keys(), key=lambda x: x):
+    capacity = notReservedCapacity[cat]
+    if upgradeTypes.has_key(cat):
+        print "Upgrade", cat, "types to", upgradeTypes[cat], "before reserving"
+    else:
+        max = maxSize[cat]
+        count = int(capacity / max)
+        if count > 0 :
+            print "Reserve", count, cat, 'of capacity', max, 'xlarge'
+        cap = capacity % max
+        if cap > 0:
+            print "Reserve", 1, cat, 'of capacity', cap, 'xlarge'
+    for type in notReservedCount:
+        if type.split('.')[0] == cat:
+            print "     ", notReservedCount[type], 'x', type
+
