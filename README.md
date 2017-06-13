@@ -39,7 +39,7 @@ It will also call ./bindare-aws-cli-setup which adds etc/dare-aws-cli.rc to your
 ## Update
 
 ```
-    ~/daring/dare-aws-cli/bin/dare-aws-cli-update
+dare-aws-cli-update
 ```
 
 ## Overview
@@ -111,6 +111,34 @@ keyname files use the following search option in ~/.aws/keys
 ```
 # aws-cred my-dev-cred
 # assh adminhost
+```
+
+## Reserved Instance Usage
+
+Generates are report of Reserved Instance usage and recommended purchases for the current Region
+and calculates based on the [EC2 RI instance size flexibility](https://aws.amazon.com/about-aws/whats-new/2017/03/amazon-ec2-reserved-instances-now-offer-instance-size-flexibility-helping-you-reduce-your-ec2-bill/).
+
+NOTE: The report assumes all Regional RIs.
+
+All sizing is based on the xlarge size.
+
+Instance Size | Value
+------------- | ------
+nano          |  0.03125
+micro         |  0.0625
+small         |  0.125
+medium        |  0.25
+large         |  0.5
+xlarge        |  1
+2xlarge       |  2
+4xlarge       |  4
+8xlarge       |  8
+10xlarge      | 10
+16xlarge      | 16
+32xlarge      | 32
+
+```
+aws-report-ec2-ri [[--detail]]
 ```
 
 ## Delete all Dead Users 
