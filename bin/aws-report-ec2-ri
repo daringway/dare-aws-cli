@@ -2,10 +2,21 @@
 
 import boto3
 import sys
+import math
 import csv
+
+# TODO add cli option parser
+# TODO add unit option for COMPUTE or XLARGE
+# TODO add percent of instances on a RI based on instance count
+# TODO add percent of instances on a RI based units
+# TODO add multi region support to scan all regions
 
 verbose = False
 csvOutput = False
+maximize='balance'
+# maximize='flexbility'
+# maximize='fixed'
+
 
 if len(sys.argv) > 1 and sys.argv[1] == '--detail':
     verbose = True
@@ -14,16 +25,17 @@ if len(sys.argv) > 1 and sys.argv[1] == '--csv':
 
 ec2 = boto3.client('ec2')
 
+# dict by RI type (category - platform)
+#   RI type
+#     list of RIs
+#     list of unreserved instances
+#
+
 ActiveFilter = [ {'Name': 'state', 'Values': ['active']}]
 reserved = ec2.describe_reserved_instances( Filters= ActiveFilter )
 
-RunFilter = [{ 'Name': 'instance-state-name', 'Values': ['running']}]
+RunFilter = [{'Name':'instance-state-name', 'Values': ['running']}]
 running = ec2.describe_instances( Filters = RunFilter )
-
-reservedBuckets = []
-notReservedCount = {}
-notReservedCapacity = {}
-instancesByType = []
 
 accountid = boto3.client('sts').get_caller_identity()['Account']
 
@@ -56,6 +68,7 @@ maxSize = {
     'f1': 16,
     'i3': 16,
     'd2': 8,
+    'i2': 4
 }
 upgradeTypes = {
     't1': 't2',
@@ -67,129 +80,284 @@ upgradeTypes = {
     'hs1': 'd2'
 }
 
+class ReservedInstance(object):
+    def __init__(self, res):
+        self.instanceType = res['InstanceType']
+        self.category = str(self.instanceType.split('.')[0])
+        self.sizeName = str(self.instanceType.split('.')[1])
+        self.where = 'Region'
+        if res['Scope'] == 'Availability Zone':
+            self.where = res['AvailabilityZone']
+        self.allocated = []
+        self.capacity = sizeMap[self.sizeName]
+        self.size = sizeMap[self.sizeName]
+        self.id = res['ReservedInstancesId']
+        self.platform = res['ProductDescription']
+
+    def addToBucket(self, instance):
+        if (self.platform == instance.platform) and (self.category == instance.category) :
+            if self.where == 'Region' or (self.where == instance.where):
+                if self.platform == 'Windows':
+                    if self.capacity == instance.size:
+                        self.capacity = 0
+                        self.allocated.append(instance.instanceType)
+                        return True
+                else:
+                    if instance.size <= self.capacity:
+                        self.capacity = self.capacity - instance.size
+                        self.allocated.append(instance.instanceType)
+                        return True
+        return False
+
+    def __eq__(self, other):
+        if self.where != other.where:
+            return False
+        if self.platform != other.platform:
+            return False
+        if self.where != other.where:
+            return False
+        if self.instanceType != other.instanceType:
+            return False
+        if self.size != other.size:
+            return False
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __lt__(self, other):
+        if self.platform != other.platform:
+            return self.platform < other.platform
+        elif self.instanceType != other.instanceType:
+            return self.instanceType < other.instanceType
+        elif self.where != other.where:
+            if self.where == 'Region':
+                return True
+            return self.where < other.where
+        elif self.size != other.size:
+            return self.size < other.size
+        else:
+            return self.capacity < other.capacity
+
+    def report(self, notReserveInstanceCount):
+        if self.capacity == 0:
+            return "RI %s %s %s is full %s" % (self.instanceType, self.platform, self.where, self.allocated)
+        elif self.capacity == self.size:
+            if (notReserveInstanceCount > 0) and (self.capacity > notReserveInstanceCount) and (self.platform == "Linux/UNIX"):
+                return "Change RI %s %s %s to Region type, needed capacity %s" % (self.instanceType, self.platform, self.where, notReserveInstanceCount)
+            elif (notReserveInstanceCount > 0) and (self.capacity == notReserveInstanceCount) and (self.platform == "Windows"):
+                return "Change RI %s %s %s to Region type, needed capacity %s" % (self.instanceType, self.platform, self.where, notReserveInstanceCount)
+            else:
+                return "Use/Sell RI %s %s %s is unused" % (self.instanceType, self.platform, self.where)
+        else:
+            return "Utilize  RI %s %s %s remaining capacity %0.1f-xlarge %s" % (self.instanceType, self.platform, self.where, self.capacity, self.allocated)
+
+
+class Instance(object):
+    def __init__(self, instance):
+
+        self.instanceType = instance['InstanceType']
+        self.category = self.instanceType.split('.')[0]
+        self.sizeName = self.instanceType.split('.')[1]
+        self.size = sizeMap[self.sizeName]
+        self.instanceId = instance['InstanceId']
+        self.where = instance['Placement']['AvailabilityZone']
+
+        if instance.has_key('Platform'):
+            if instance['Platform'] == 'windows':
+                self.platform = 'Windows'
+            else:
+                self.platform = instance['Platform']
+        else:
+            self.platform = 'Linux/UNIX'
+
+    def __eq__(self, other):
+        if self.platform != other.platform:
+            return False
+        if self.instanceType != other.instanceType:
+            return False
+        if self.size != other.size:
+            return False
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __lt__(self, other):
+        if self.platform != other.platform:
+            return self.platform < other.platform
+        if self.instanceType != other.instanceType:
+            return self.instanceType < other.instanceType
+        elif self.size != other.size:
+            return self.size < other.size
+
+    def __repr__(self):
+        return "%s %s %s" % (self.instanceType, self.platform, self.size)
+
+
+class NotReservedType(object):
+    def __init__(self, instance):
+        self.count = 0
+        self.neededCapacity = 0
+        self.typeCount = {}
+        self.platform = instance.platform
+        self.category = instance.category
+        self.increase(instance)
+
+        if upgradeTypes.has_key(self.category):
+            self.upgrade = True
+        else:
+            self.upgrade = False
+
+    def __eq__(self, other):
+        if self.upgrade != other.upgrade:
+            return False
+        if self.platform != other.platform:
+            return False
+        if self.category != other.category:
+            return False
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __lt__(self, other):
+        if self.upgrade != other.upgrade:
+            return self.upgrade < other.upgrade
+        if self.platform != other.platform:
+            return self.platform < other.platform
+        else:
+            return self.category < other.category
+
+    def increase(self, instance):
+        self.count = self.count + 1
+        self.neededCapacity = self.neededCapacity + instance.size
+        self.typeCount[instance.instanceType] = self.typeCount.get(instance.instanceType, 0) + 1
+
+
+    def getCounts(self):
+        counts = []
+        for key in self.typeCount.keys():
+            counts.append("%s x %s" % (self.typeCount[key], key))
+        return counts
+
+    def __repr__(self):
+        countStr = ', '.join(self.getCounts())
+
+        if self.upgrade:
+            return "Upgrade Instances %s %s types to %s before reserving for [%s]" % (self.category, self.platform, upgradeTypes[self.category], countStr)
+        else:
+            max = maxSize[self.category]
+            if ( maximize == 'flexbility'):
+                howmany = int(math.ceil(self.neededCapacity / max))
+                return "Purchase RI %s %s %s %sxlarge for [%s]" % (self.category, self.platform, howmany, max, countStr)
+            elif (maximize == 'fixed'):
+                return "Purchase RI %s %s %s" % (self.category, self.platform, countStr)
+            else:
+                # maximize balanced
+                count = int(self.neededCapacity / max)
+                leftover = self.neededCapacity % max
+
+                # if count > 0:
+                #     print "Reserve", count, cat, 'of capacity', max, 'xlarge'
+                # if leftover > 0:
+                #     print "Reserve", 1, cat, 'of capacity', cap, 'xlarge'
+
+                return "Purchase RI %s %s %3i x %sxlarge and %3.3f xlarge for [%s]" % (self.category, self.platform, count, max, leftover, countStr)
+
+
+class NotReservedDict(dict):
+    def increase(self, inst):
+        index = inst.platform + " " + inst.category
+
+        if self.has_key(index):
+            self[index].increase(inst)
+        else:
+            self[index] = NotReservedType(inst)
+
+    def needReservation(self, category, platform):
+        for notreserved in self.values():
+            if (notreserved.category == category) and (notreserved.platform == platform):
+                return notreserved.neededCapacity
+        return 0
+
+notReserved = NotReservedDict()
+reservedBuckets2 = []
+instances2 = []
+
+
+# Load Data
 for res in reserved['ReservedInstances']:
     rcount = res['InstanceCount']
     rtype = res['InstanceType']
     category = str(rtype.split('.')[0])
     sizeName = str(rtype.split('.')[1])
+    where = 'Region'
+    if res['Scope'] == 'Availability Zone':
+        where = res['AvailabilityZone']
     for x in range(0, rcount):
-        reservedBuckets.append({
-            'InstanceType': rtype,
-            'Category': category,
-            'Size': sizeName,
-            'Capacity': sizeMap[sizeName],
-            'Platform': res['ProductDescription'],
-            'Allocated': []
-        })
-reservedBuckets.sort(key=lambda x: x['Size'], reverse=True)
+        reservedBuckets2.append( ReservedInstance(res))
 
 for reservation in running["Reservations"]:
-    for instance in reservation["Instances"]:
-        itype = instance['InstanceType']
-        category = itype.split('.')[0]
-        sizeName = itype.split('.')[1]
-        if instance.has_key('Platform'):
-            if instance['Platform'] == 'windows':
-                platform = 'Windows'
-            else:
-                platform = instance['Platform']
-        else:
-            platform = 'Linux/UNIX'
-        instancesByType.append({
-            'Instancetype': itype,
-            'Category': category,
-            'SizeName': sizeName,
-            'Size': sizeMap[sizeName],
-            'InstanceId': instance['InstanceId'],
-            'Platform': platform
-        })
+    for inst in reservation["Instances"]:
+        instances2.append(Instance(inst))
 
-instancesByType.sort(key=lambda x: x['Size'], reverse=True)
+reservedBuckets2.sort(reverse=True)  # Small to Large
+instances2.sort(reverse=False)  # Large to Small
 
-for instance in instancesByType:
-    size = instance['Size']
-    category = instance['Category']
+for inst in instances2:
     instanceReserved = False
-    for res in reservedBuckets:
-        if res['Platform'] == instance['Platform']:
-            if res['Category'] == category:
-                if res['Platform'] == 'Windows':
-                    if size == res['Capacity']:
-                        res['Capacity'] = 0
-                        res['Allocated'].append(instance['Instancetype'])
-                        instanceReserved = True
-                        break
-                else:
-                    if size <= res['Capacity']:
-                        res['Capacity'] = res['Capacity'] - size
-                        res['Allocated'].append(instance['Instancetype'])
-                        instanceReserved = True
-                        break
+    for res in reservedBuckets2:
+        if res.addToBucket(inst):
+            instanceReserved = True
+            break
     if instanceReserved == False:
-        notReservedCount[instance['Platform'] + " " + instance['Instancetype']] = notReservedCount.get(instance['Platform'] + " " + instance['Instancetype'], 0) + 1
-        notReservedCapacity[instance['Platform'] + " " + instance['Category']] = notReservedCapacity.get(instance['Platform'] + " " + instance['Category'], 0) + sizeMap[instance['SizeName']]
+        notReserved.increase(inst)
 
 if csvOutput:
     fieldnames=['Account', 'State', 'RI', 'Platform', 'XL Capacity', 'Used', 'Remaining', 'Allocated']
-    csvOut = csv.DictWriter(sys.stdout, fieldnames=fieldnames, delimiter=',' )
+    csvOut = csv.DictWriter(sys.stdout, fieldnames=fieldnames, delimiter=',')
     csvOut.writeheader()
 
-for res in reservedBuckets:
-    if csvOutput:
-        max = sizeMap[res['Size']]
-        used = max - res['Capacity']
-        values = {
-            'Account': accountid,
-            'State': 'RI',
-            'RI': res['InstanceType'],
-            'Platform': res['Platform'],
-            'XL Capacity': max,
-            'Used': used,
-            'Remaining': res['Capacity'],
-            'Allocated': res['Allocated']
-        }
-        csvOut.writerow(values)
-    elif verbose and res['Capacity'] == 0:
-        print "RI", res['InstanceType'], res['Platform'], 'is full:', res['Allocated']
-    elif res['Capacity'] > 0:
-        print "RI", res['InstanceType'], res['Platform'], 'remaining capacity', res['Capacity'], 'xlarge', res['Allocated']
+for platform in ['Linux/UNIX', 'Windows']:
+    for cat in upgradeTypes.keys() + maxSize.keys():
+        for notr in sorted(notReserved.values()):
+            if (cat == notr.category) and (platform == notr.platform):
+                if csvOutput:
+                    values = {
+                        'Account': accountid,
+                        'RI': notr.category,
+                        'Platform': notr.platform,
+                        'Allocated': notr.getCounts()
+                        }
+                    if notr.upgrade:
+                        values['State'] = 'Upgrade'
+                    else:
+                        values['State'] = 'Reserve'
+                        values['XL Capacity'] = notr.neededCapacity
 
+                        csvOut.writerow(values)
+                else:
+                    print notr
 
-for cat in sorted(notReservedCapacity.keys(), key=lambda x: x):
-    capacity = notReservedCapacity[cat]
-    catType = cat.split(' ')[1]
-    platform = cat.split(' ')[0]
-
-    if csvOutput:
-        values = {
-            'Account': accountid,
-            'State': 'Reserve',
-            'RI': catType,
-            'Platform': platform
-        }
-        if upgradeTypes.has_key(catType):
-            values['State'] = 'Upgrade'
-        else:
-            values['XL Capacity'] = capacity
-
-        values['Allocated'] = []
-        for type in notReservedCount:
-            if type.split('.')[0] == cat:
-                values['Allocated'].append( str(notReservedCount[type]) + ' x ' + type.split(' ')[1] )
-
-        csvOut.writerow(values)
-    else:
-        if upgradeTypes.has_key(catType):
-            print "Upgrade", cat, "types to", upgradeTypes[catType], "before reserving"
-        else:
-            max = maxSize[catType]
-            count = int(capacity / max)
-            if count > 0 :
-                print "Reserve", count, cat, 'of capacity', max, 'xlarge'
-            cap = capacity % max
-            if cap > 0:
-                print "Reserve", 1, cat, 'of capacity', cap, 'xlarge'
-        for type in notReservedCount:
-            if type.split('.')[0] == cat:
-                print "     ", notReservedCount[type], 'x', type
+        for res in reservedBuckets2:
+            if (cat == res.category) and (platform == notr.platform):
+                if csvOutput:
+                    max = sizeMap[res.sizeName]
+                    used = max - res.capacity
+                    values = {
+                        'Account': accountid,
+                        'State': 'RI',
+                        'RI': res.instanceType,
+                        'Platform': res.platform,
+                        'XL Capacity': max,
+                        'Used': used,
+                        'Remaining': res.capacity,
+                        'Allocated': res.allocated
+                    }
+                    csvOut.writerow(values)
+                else:
+                    # for platform in ['Linux/UNIX', 'Windows']:
+                    capacityNeed = notReserved.needReservation(cat, platform)
+                    if verbose:
+                        print res.report(capacityNeed)
+                    elif res.capacity > 0:
+                        print res.report(capacityNeed)
 
