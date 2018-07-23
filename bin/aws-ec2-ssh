@@ -25,7 +25,8 @@ function help {
     exit 1
 }
 
-KEYDIR=~/.aws/keys
+#KEYDIR=~/.aws/keys
+KEYDIR=~/.ssh
 SSHGETOPTS="1246AaCfGgKkMNnqsTtVvXxYyb:c:D:E:e:F:I:i:L:l:m:O:o:p:Q:R:S:W:w:"
 
 declare -a arr
