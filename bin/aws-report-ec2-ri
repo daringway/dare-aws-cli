@@ -68,16 +68,19 @@ maxSize = {
     'f1': 16,
     'i3': 16,
     'd2': 8,
-    'i2': 4
+    'i2': 4,
+    'i3': 8
 }
 upgradeTypes = {
     't1': 't2',
     'm1': 'm3',
     'c1': 'c3',
     'hi1': 'i3',
-    'm2': 'r3',
-    'cr1': 'r3',
-    'hs1': 'd2'
+    'm2': 'r4',
+    'cr1': 'r4',
+    'hs1': 'd2',
+    'i2': 'i3',
+    'r3': 'r4'
 }
 
 class ReservedInstance(object):

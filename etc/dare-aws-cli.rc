@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-PATH=$(dirname $(dirname ${BASH_SOURCE[0]}))/bin:$PATH
+PATH=$(dirname $(dirname ${0}))/bin:$PATH
 
 alias assh=aws-ec2-ssh
 alias aid=aws-cred-id

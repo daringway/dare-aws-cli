@@ -25,7 +25,7 @@ function help {
     exit 1
 }
 
-KEYDIR=~/.aws/keys
+KEYDIRS=$(echo ~/.aws/keys ~/.ssh)
 SSHGETOPTS="1246AaCfGgKkMNnqsTtVvXxYyb:c:D:E:e:F:I:i:L:l:m:O:o:p:Q:R:S:W:w:"
 
 declare -a arr
@@ -47,7 +47,7 @@ done
 DEST=${arr[$((OPTIND-1))]}
 
 # Defaults
-SUSER="ec2-user@"
+SUSER=""
 
 # Remove the optional user and path
 if [[ $DEST == *@* ]]
@@ -92,27 +92,43 @@ fi
 PRIVATE_DEST=$(echo ${LIST[$where]} | cut -d' ' -f3)
 PUBLIC_DEST=$(echo ${LIST[$where]} | cut -d' ' -f4)
 PEM=$(echo ${LIST[$where]} | cut -d' ' -f5)
+SSHUSER=$(echo ${LIST[$where]} | cut -d' ' -f6)
 
-if [ -f "$KEYDIR/${PEM}+${AWS_DEFAULT_PROFILE}.pem" ]
+if [[ "${SUER}" == "" ]]
 then
-    PEMOPT=" -i $KEYDIR/${PEM}+${AWS_DEFAULT_PROFILE}.pem "
-elif [ -f "$KEYDIR/${PEM}.pem" ]
-then
-    PEMOPT=" -i $KEYDIR/${PEM}.pem "
+  if [[ "${SSHUSER}" == "No-SSHUSER" ]]
+  then
+    SUSER="ec2-user@"
+  else
+    SUSER="${SSHUSER}@"
+  fi
 fi
 
-# Check for Private access, then public
-#if nc -z -v -w1  $PRIVATE_DEST 22 >/dev/null 2>&1
-#then
-#    DEST=$PRIVATE_DEST
-#elif nc -z -v -w1  $PUBLIC_DEST 22 >/dev/null 2>&1
-#then
-#    DEST=$PUBLIC_DEST
-#else
-#    echo "ERROR: Can not reach $PRIVATE_DEST or $PUBLIC_DEST address" 1>&2
-#    exit 3
-#fi
+if [[ "${PEM}" == "No-KeyName" ]]
+then
+  DEST=$(echo ${LIST[$where]} | cut -d' ' -f1)
 
+  if (( $VERBOSE ))
+  then
+    echo SSH-OPTIONS ${arr[*]} ${DEST}
+  fi
+
+  mssh -o ConnectTimeout=2 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ${arr[*]} ${DEST}
+  exit $?
+fi
+
+for KEYDIR in $KEYDIRS
+do
+    if [ -f "${KEYDIR}/${PEM}+${AWS_DEFAULT_PROFILE}.pem" ]
+    then
+        PEMOPT=" -i ${KEYDIR}/${PEM}+${AWS_DEFAULT_PROFILE}.pem "
+        break
+    elif [ -f "${KEYDIR}/${PEM}.pem" ]
+    then
+        PEMOPT=" -i ${KEYDIR}/${PEM}.pem "
+        break
+    fi
+done
 
 if (( $VERBOSE ))
 then
@@ -134,4 +150,5 @@ then
 fi
 
 arr[$((OPTIND-1))]="${SUSER}${PUBLIC_DEST}${SPATH}"
+
 ssh $PEMOPT -o ConnectTimeout=2 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ${arr[*]}
