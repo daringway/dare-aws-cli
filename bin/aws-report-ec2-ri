@@ -4,6 +4,8 @@ import boto3
 import sys
 import math
 import csv
+import datetime
+import pytz
 
 # TODO add cli option parser
 # TODO add unit option for COMPUTE or XLARGE
@@ -16,6 +18,11 @@ csvOutput = False
 maximize='balance'
 # maximize='flexbility'
 # maximize='fixed'
+
+# Convert the xlarge normalized units to AWS Normalizations
+awsUnitMultiplier = 8
+
+ec2_age_threshold = datetime.timedelta(days=14)
 
 
 if len(sys.argv) > 1 and sys.argv[1] == '--detail':
@@ -203,6 +210,7 @@ class NotReservedType(object):
         self.typeCount = {}
         self.platform = instance.platform
         self.category = instance.category
+        self.instances = []
         self.increase(instance)
 
         if upgradeTypes.has_key(self.category):
@@ -233,6 +241,7 @@ class NotReservedType(object):
         self.count = self.count + 1
         self.neededCapacity = self.neededCapacity + instance.size
         self.typeCount[instance.instanceType] = self.typeCount.get(instance.instanceType, 0) + 1
+        self.instances.append(instance)
 
 
     def getCounts(self):
@@ -300,7 +309,9 @@ for res in reserved['ReservedInstances']:
 
 for reservation in running["Reservations"]:
     for inst in reservation["Instances"]:
-        instances2.append(Instance(inst))
+        # Want to skip new EC2 instances.
+        if inst['LaunchTime'] + ec2_age_threshold < datetime.datetime.now(pytz.timezone("UTC")):
+            instances2.append(Instance(inst))
 
 reservedBuckets2.sort(reverse=True)  # Small to Large
 instances2.sort(reverse=False)  # Large to Small
@@ -319,10 +330,17 @@ if csvOutput:
     csvOut = csv.DictWriter(sys.stdout, fieldnames=fieldnames, delimiter=',')
     csvOut.writeheader()
 
+reservedUnits = 0
+unreservedUnits = 0
+reservedCount = 0
+unreservedCount = 0
 for platform in ['Linux/UNIX', 'Windows']:
     for cat in upgradeTypes.keys() + maxSize.keys():
+
         for notr in sorted(notReserved.values()):
             if (cat == notr.category) and (platform == notr.platform):
+                unreservedUnits += notr.neededCapacity
+                unreservedCount += 1
                 if csvOutput:
                     values = {
                         'Account': accountid,
@@ -341,7 +359,9 @@ for platform in ['Linux/UNIX', 'Windows']:
                     print notr
 
         for res in reservedBuckets2:
-            if (cat == res.category) and (platform == notr.platform):
+            if (cat == res.category) and (platform == res.platform):
+                reservedUnits += res.size
+                reservedCount += 1
                 if csvOutput:
                     max = sizeMap[res.sizeName]
                     used = max - res.capacity
@@ -364,3 +384,9 @@ for platform in ['Linux/UNIX', 'Windows']:
                     elif res.capacity > 0:
                         print res.report(capacityNeed)
 
+
+print ""
+print "reserved instance count  ", reservedCount
+print "unreserved instance count", unreservedCount
+print "reserved xlarge Units: ", reservedUnits
+print "unreserved xlargeUnits:", unreservedUnits
