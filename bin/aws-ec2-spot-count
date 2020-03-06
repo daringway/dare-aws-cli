@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+export AWS_DEFAULT_REGION
+for AWS_DEFAULT_REGION in us-east-1 us-west-2  eu-west-1 ap-southeast-1
+do
+  C=$(./bin/aws-ec2-spot-list |   grep -w spot | wc -l)
+  COUNT=$(( $COUNT + $C ))
+  echo $AWS_DEFAULT_REGION $C
+done
+
+echo $COUNT

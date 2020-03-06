@@ -50,7 +50,7 @@ DEST=${arr[$((OPTIND-1))]}
 SUSER=""
 
 # Remove the optional user and path
-if [[ $DEST == *@* ]]
+if [[ "$DEST" == *@* ]]
 then
     SUSER="${DEST%@*}@"
     DEST=${DEST##*@}
@@ -89,6 +89,7 @@ else
 fi
 
 # we have a index (number) so lookup hostname.
+INSTANCE_ID=$(echo ${LIST[$where]} | cut -d' ' -f1)
 PRIVATE_DEST=$(echo ${LIST[$where]} | cut -d' ' -f3)
 PUBLIC_DEST=$(echo ${LIST[$where]} | cut -d' ' -f4)
 PEM=$(echo ${LIST[$where]} | cut -d' ' -f5)
@@ -113,7 +114,8 @@ then
     echo SSH-OPTIONS ${arr[*]} ${DEST}
   fi
 
-  mssh -o ConnectTimeout=2 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ${arr[*]} ${DEST}
+  arr[$((OPTIND-1))]="${SUSER}${INSTANCE_ID}${SPATH}"
+  mssh -o ConnectTimeout=2 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no  ${arr[*]}
   exit $?
 fi
 
@@ -150,5 +152,5 @@ then
 fi
 
 arr[$((OPTIND-1))]="${SUSER}${PUBLIC_DEST}${SPATH}"
-
+echo ssh $PEMOPT -o ConnectTimeout=2 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ${arr[*]}
 ssh $PEMOPT -o ConnectTimeout=2 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ${arr[*]}
