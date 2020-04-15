@@ -24,16 +24,21 @@ sudo pip install --ignore-installed six boto3
 Time to setup your environment. The Install script will create and install at the directory specified.
 It will also call ./bindare-aws-cli-setup which adds etc/dare-aws-cli.rc to your .profile or .bash_profile
 
-1. Clone or download this repo and runt the setup script.
+1. Clone this repo and runt the setup script.
 
     ``` 
-    curl -L https://raw.github.com/daringway/dare-aws-cli/master/install.sh | bash -s -- ~/daring/dare-aws-cli
+   git clone https://github.com/wderezin/daring-aws-cli.gi
+   cd daring-aws-cli
+   sh ./install.sh 
     ```
-    
-    If you are installing into a root access required directory add sudo
-     ``` 
-    curl -L https://raw.github.com/daringway/dare-aws-cli/master/install.sh | sudo bash -s -- ~/daring/dare-aws-cli
-    ```   
+   
+   Or
+
+   ``` 
+   git clone https://github.com/wderezin/daring-aws-cli.gi
+   ```
+   Add `daring-aws-cli/etc/dare-aws-cli.rc` to your shell's profile or rc file.
+   
 1. Start a new bash session
 
 ## Update
