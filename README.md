@@ -38,7 +38,7 @@ It will also call ./bindare-aws-cli-setup which adds etc/dare-aws-cli.rc to your
    git clone https://github.com/wderezin/daring-aws-cli.gi
    ```
    Add `daring-aws-cli/etc/dare-aws-cli.rc` to your shell's profile or rc file.
-   
+  
 1. Start a new bash session
 
 ## Update
@@ -52,6 +52,8 @@ dare-aws-cli-update
 All commands start with 'aws-' for easy tab completion.  Most commands have the -? and -h option.
 
 WARNING: Commands that are not listed below are still in development and subject to change.
+
+    Note cred commands do not support the AWS SSO service.  
 
 ## aws-cred-id (alias aid)
 
